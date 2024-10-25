@@ -1,0 +1,346 @@
+<html><head><base href="/">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gerador de Senhas com SMS</title>
+<style>
+:root {
+    --primary: #2a2f4c;
+    --secondary: #4CAF50;
+}
+
+body {
+    font-family: 'Segoe UI', sans-serif;
+    background: linear-gradient(135deg, var(--primary), #1a1f3c);
+    min-height: 100vh;
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: white;
+}
+
+.container {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 2rem;
+    border-radius: 10px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(10px);
+    max-width: 400px;
+    width: 90%;
+}
+
+h1 {
+    text-align: center;
+    color: var(--secondary);
+    margin-bottom: 1.5rem;
+}
+
+.password-display {
+    background: rgba(0, 0, 0, 0.2);
+    padding: 1rem;
+    border-radius: 5px;
+    margin-bottom: 1rem;
+    font-family: monospace;
+    font-size: 1.2rem;
+    text-align: center;
+}
+
+.config-section {
+    background: rgba(0, 0, 0, 0.1);
+    padding: 1rem;
+    border-radius: 5px;
+    margin-bottom: 1rem;
+}
+
+.input-group {
+    margin-bottom: 1rem;
+}
+
+.input-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: #a5a5a5;
+}
+
+.input-group input {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.05);
+    color: white;
+}
+
+.options {
+    display: grid;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.option {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+button {
+    background: var(--secondary);
+    color: white;
+    border: none;
+    padding: 0.8rem;
+    border-radius: 5px;
+    cursor: pointer;
+    width: 100%;
+    font-size: 1rem;
+    transition: transform 0.2s;
+    margin-bottom: 0.5rem;
+}
+
+button:hover {
+    transform: translateY(-2px);
+    background: #45a049;
+}
+
+.status {
+    text-align: center;
+    margin-top: 1rem;
+    padding: 0.5rem;
+    border-radius: 4px;
+    display: none;
+}
+
+.success {
+    background: rgba(76, 175, 80, 0.2);
+    color: #4CAF50;
+}
+
+.error {
+    background: rgba(244, 67, 54, 0.2);
+    color: #f44336;
+}
+</style>
+</head>
+<body>
+    <div class="container">
+        <h1>Gerador de Senhas SMS</h1>
+        
+        <div class="config-section">
+            <div class="input-group">
+                <label>IP do Servidor SMS:</label>
+                <input type="text" id="serverIp" placeholder="Ex: 192.168.1.100" value="localhost">
+            </div>
+            <div class="input-group">
+                <label>Porta:</label>
+                <input type="text" id="serverPort" placeholder="Ex: 8080" value="8080">
+            </div>
+            <div class="input-group">
+                <label>Número do Telefone:</label>
+                <input type="tel" id="phoneNumber" placeholder="Ex: 5511999999999">
+            </div>
+        </div>
+
+        <div class="password-display" id="password">
+            Clique em Gerar!
+        </div>
+        
+        <div class="options">
+            <div class="option">
+                <label>Comprimento da senha: </label>
+                <input type="number" id="length" min="4" max="50" value="8" style="width: 60px">
+            </div>
+            <div class="option">
+                <input type="checkbox" id="uppercase" checked>
+                <label for="uppercase">Letras Maiúsculas</label>
+            </div>
+            <div class="option">
+                <input type="checkbox" id="lowercase" checked>
+                <label for="lowercase">Letras Minúsculas</label>
+            </div>
+            <div class="option">
+                <input type="checkbox" id="numbers" checked>
+                <label for="numbers">Números</label>
+            </div>
+            <div class="option">
+                <input type="checkbox" id="symbols">
+                <label for="symbols">Símbolos</label>
+            </div>
+        </div>
+
+        <button id="generateBtn">Gerar e Enviar Senha</button>
+        <div id="status" class="status"></div>
+    </div>
+
+<script>
+const passwordDisplay = document.getElementById('password');
+const lengthEl = document.getElementById('length');
+const uppercaseEl = document.getElementById('uppercase');
+const lowercaseEl = document.getElementById('lowercase');
+const numbersEl = document.getElementById('numbers');
+const symbolsEl = document.getElementById('symbols');
+const generateBtn = document.getElementById('generateBtn');
+const statusEl = document.getElementById('status');
+const serverIpEl = document.getElementById('serverIp');
+const serverPortEl = document.getElementById('serverPort');
+const phoneNumberEl = document.getElementById('phoneNumber');
+
+const randomFunc = {
+    lower: getRandomLower,
+    upper: getRandomUpper,
+    number: getRandomNumber,
+    symbol: getRandomSymbol
+};
+
+generateBtn.addEventListener('click', generateAndSendPassword);
+
+async function generateAndSendPassword() {
+    const password = generatePassword();
+    passwordDisplay.textContent = password;
+    
+    // Validar campos obrigatórios
+    if (!serverIpEl.value || !serverPortEl.value || !phoneNumberEl.value) {
+        showStatus('Por favor, preencha todos os campos de configuração!', false);
+        return;
+    }
+
+    try {
+        await sendPasswordBySMS(password);
+        showStatus('Senha gerada e enviada com sucesso!', true);
+    } catch (error) {
+        showStatus('Erro ao enviar SMS: ' + error.message, false);
+    }
+}
+
+function generatePassword() {
+    const length = +lengthEl.value;
+    const hasLower = lowercaseEl.checked;
+    const hasUpper = uppercaseEl.checked;
+    const hasNumber = numbersEl.checked;
+    const hasSymbol = symbolsEl.checked;
+    
+    return generatePasswordString(
+        hasLower, 
+        hasUpper, 
+        hasNumber, 
+        hasSymbol, 
+        length
+    );
+}
+
+function generatePasswordString(lower, upper, number, symbol, length) {
+    let generatedPassword = '';
+    const typesCount = lower + upper + number + symbol;
+    const typesArr = [{lower}, {upper}, {number}, {symbol}]
+        .filter(item => Object.values(item)[0]);
+    
+    if(typesCount === 0) {
+        return '';
+    }
+
+    for(let i = 0; i < length; i += typesCount) {
+        typesArr.forEach(type => {
+            const funcName = Object.keys(type)[0];
+            generatedPassword += randomFunc[funcName]();
+        });
+    }
+
+    const finalPassword = generatedPassword.slice(0, length);
+    return shufflePassword(finalPassword);
+}
+
+function shufflePassword(password) {
+    const array = password.split('');
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array.join('');
+}
+
+function getRandomLower() {
+    return String.fromCharCode(Math.floor(Math.random() * 26) + 97);
+}
+
+function getRandomUpper() {
+    return String.fromCharCode(Math.floor(Math.random() * 26) + 65);
+}
+
+function getRandomNumber() {
+    return String.fromCharCode(Math.floor(Math.random() * 10) + 48);
+}
+
+function getRandomSymbol() {
+    const symbols = '!@#$%^&*(){}[]=<>/,.';
+    return symbols[Math.floor(Math.random() * symbols.length)];
+}
+
+async function sendPasswordBySMS(password) {
+    const ip = serverIpEl.value;
+    const porta = serverPortEl.value;
+    const numero = phoneNumberEl.value;
+    const texto = encodeURIComponent(`Sua senha gerada é: ${password}`);
+
+    const url = `http://${ip}:${porta}?number=${numero}&text=${texto}`;
+
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.text();
+        return data;
+    } catch (error) {
+        console.error('Erro ao enviar SMS:', error);
+        throw error;
+    }
+}
+
+function showStatus(message, isSuccess) {
+    statusEl.textContent = message;
+    statusEl.className = 'status ' + (isSuccess ? 'success' : 'error');
+    statusEl.style.display = 'block';
+    
+    setTimeout(() => {
+        statusEl.style.display = 'none';
+    }, 5000);
+}
+
+// Adicionar validação de número de telefone
+phoneNumberEl.addEventListener('input', function(e) {
+    let value = e.target.value.replace(/\D/g, '');
+    if (value.length > 13) {
+        value = value.slice(0, 13);
+    }
+    e.target.value = value;
+});
+
+// Validar porta
+serverPortEl.addEventListener('input', function(e) {
+    let value = e.target.value.replace(/\D/g, '');
+    if (value > 65535) {
+        value = 65535;
+    }
+    e.target.value = value;
+});
+
+// Validar IP
+serverIpEl.addEventListener('input', function(e) {
+    let value = e.target.value;
+    if (value !== 'localhost') {
+        value = value.replace(/[^0-9.]/g, '');
+        const parts = value.split('.');
+        if (parts.length > 4) {
+            parts.length = 4;
+            value = parts.join('.');
+        }
+        parts.forEach((part, index) => {
+            if (part > 255) {
+                parts[index] = 255;
+            }
+        });
+        value = parts.join('.');
+    }
+    e.target.value = value;
+});
+</script>
+</body>
+</html>
